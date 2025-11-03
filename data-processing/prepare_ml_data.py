@@ -275,8 +275,11 @@ def prepare_ml_data(input_file='clean_activity_dataset.csv',
     print(f"✓ Saved to '{output_file}'")
     
     # Also save separate X and y files
-    X_file = output_file.replace('.csv', '_X.csv')
-    y_file = output_file.replace('.csv', '_y.csv')
+    import os
+    base_dir = os.path.dirname(output_file)
+    base_name = os.path.basename(output_file).replace('.csv', '')
+    X_file = os.path.join(base_dir, f'{base_name}_X.csv')
+    y_file = os.path.join(base_dir, f'{base_name}_y.csv')
     
     df_final[['electrolyte_name'] + feature_cols].to_csv(X_file, index=False)
     df_final[['electrolyte_name'] + target_cols].to_csv(y_file, index=False)
@@ -312,10 +315,15 @@ def prepare_ml_data(input_file='clean_activity_dataset.csv',
 
 
 if __name__ == "__main__":
+    # Set up paths relative to project root
+    import os
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    data_dir = os.path.join(project_root, 'data')
+    
     # Run with default parameters
     df, X_cols, y_cols = prepare_ml_data(
-        input_file='clean_activity_dataset.csv',
-        output_file='ml_ready_dataset.csv',
+        input_file=os.path.join(data_dir, 'clean_activity_dataset.csv'),
+        output_file=os.path.join(data_dir, 'ml_ready_dataset.csv'),
         completeness_threshold=70,
         missing_value_strategy='mean'
     )

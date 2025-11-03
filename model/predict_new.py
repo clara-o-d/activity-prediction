@@ -49,14 +49,20 @@ def main():
     print("PITZER COEFFICIENT PREDICTION - Using Trained Model")
     print("=" * 80)
     
+    # Set up paths relative to project root
+    import os
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    data_dir = os.path.join(project_root, 'data')
+    model_dir = os.path.join(project_root, 'model')
+    
     # Load the trained model
     print("\n[1] Loading trained model...")
-    model, scaler = load_trained_model('best_pitzer_model.pkl')
+    model, scaler = load_trained_model(os.path.join(model_dir, 'best_pitzer_model.pkl'))
     print("✓ Model and scaler loaded successfully")
     
     # Load data for prediction
     print("\n[2] Loading data for prediction...")
-    df = pd.read_csv('ml_ready_dataset.csv')
+    df = pd.read_csv(os.path.join(data_dir, 'ml_ready_dataset.csv'))
     
     # For demonstration, let's predict on the first 5 electrolytes
     electrolyte_names = df['electrolyte_name'].head(5)

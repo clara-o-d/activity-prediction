@@ -343,10 +343,12 @@ def main():
     print("Activity Database Processing Pipeline")
     print("=" * 70)
     
-    # File paths
-    properties_file = 'Activity Database.xlsx - Electrolyte Properties.csv'
-    activity_file = 'Activity Database.xlsx - Electrolyte Activity.csv'
-    output_file = 'clean_activity_dataset.csv'
+    # File paths (relative to project root)
+    import os
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    properties_file = os.path.join(project_root, 'data', 'Activity Database.xlsx - Electrolyte Properties.csv')
+    activity_file = os.path.join(project_root, 'data', 'Activity Database.xlsx - Electrolyte Activity.csv')
+    output_file = os.path.join(project_root, 'data', 'clean_activity_dataset.csv')
     
     # Step 1: Read and filter properties data
     print("\n[Step 1] Reading electrolyte properties...")

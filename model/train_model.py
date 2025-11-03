@@ -224,7 +224,7 @@ def cross_validate_best_model(best_model, X, y, cv=5):
     return cv_scores
 
 
-def plot_predictions(model, X_test, y_test, target_cols, model_name='Best Model'):
+def plot_predictions(model, X_test, y_test, target_cols, model_name='Best Model', output_file='prediction_plots.png'):
     """Plot predicted vs actual values for each target."""
     print("\n" + "=" * 80)
     print("Generating Prediction Plots")
@@ -258,8 +258,8 @@ def plot_predictions(model, X_test, y_test, target_cols, model_name='Best Model'
         ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig('prediction_plots.png', dpi=300, bbox_inches='tight')
-    print("✓ Saved to 'prediction_plots.png'")
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"✓ Saved to '{output_file}'")
     
     return fig
 
@@ -295,8 +295,14 @@ def main():
     print("PITZER COEFFICIENT PREDICTION - ML PIPELINE")
     print("=" * 80)
     
+    # Set up paths relative to project root
+    import os
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    data_dir = os.path.join(project_root, 'data')
+    model_dir = os.path.join(project_root, 'model')
+    
     # 1. Load data
-    X, y, electrolyte_names, feature_cols, target_cols = load_data('ml_ready_dataset.csv')
+    X, y, electrolyte_names, feature_cols, target_cols = load_data(os.path.join(data_dir, 'ml_ready_dataset.csv'))
     
     # 2. Explore data
     explore_data(X, y, feature_cols, target_cols)
@@ -327,7 +333,8 @@ def main():
     cv_scores = cross_validate_best_model(best_model, X_scaled, y)
     
     # 8. Plot predictions
-    plot_predictions(best_model, X_test, y_test, target_cols, best_model_name)
+    plot_output = os.path.join(model_dir, 'prediction_plots.png')
+    plot_predictions(best_model, X_test, y_test, target_cols, best_model_name, plot_output)
     
     # 9. Feature importance (if available)
     if hasattr(best_model, 'feature_importances_'):
@@ -344,7 +351,7 @@ def main():
         print(feature_importance.head(10).to_string(index=False))
     
     # 10. Save best model
-    save_model(best_model, scaler, 'best_pitzer_model.pkl')
+    save_model(best_model, scaler, os.path.join(model_dir, 'best_pitzer_model.pkl'))
     
     # Final summary
     print("\n" + "=" * 80)
