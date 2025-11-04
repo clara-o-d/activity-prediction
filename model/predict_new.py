@@ -28,7 +28,7 @@ def predict_pitzer_coefficients(model, scaler, X_new):
         X_new: DataFrame with feature columns matching training data
     
     Returns:
-        DataFrame with predictions for beta_0, beta_1, beta_2, c_mx
+        DataFrame with predictions for beta_0, beta_1, c_mx
     """
     # Scale features
     X_scaled = scaler.transform(X_new)
@@ -37,7 +37,7 @@ def predict_pitzer_coefficients(model, scaler, X_new):
     predictions = model.predict(X_scaled)
     
     # Create results DataFrame
-    target_cols = ['beta_0', 'beta_1', 'beta_2', 'c_mx']
+    target_cols = ['beta_0', 'beta_1', 'c_mx']  # Removed beta_2 (all zeros)
     results = pd.DataFrame(predictions, columns=target_cols, index=X_new.index)
     
     return results
@@ -68,7 +68,7 @@ def main():
     electrolyte_names = df['electrolyte_name'].head(5)
     
     # Extract features (excluding name and targets)
-    target_cols = ['beta_0', 'beta_1', 'beta_2', 'c_mx']
+    target_cols = ['beta_0', 'beta_1', 'c_mx']  # Removed beta_2 (all zeros)
     feature_cols = [col for col in df.columns if col not in ['electrolyte_name'] + target_cols]
     
     X_new = df[feature_cols].head(5)

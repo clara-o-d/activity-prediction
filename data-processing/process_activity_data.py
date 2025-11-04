@@ -224,11 +224,15 @@ def create_name_mappings():
     Maps activity file names to property file names.
     """
     mappings = {
+        # Acids
         'HCl': 'hydrogen chloride',
         'HBr': 'hydrobromic acid',
         'HI': 'hydroiodic acid',
         'HClO4': 'perchloric acid',
         'HNO3': 'nitric acid',
+        'HF': 'HF',
+        
+        # Lithium compounds
         'LiOH': 'lithium hydroxide',
         'LiCl': 'lithium chloride',
         'LiBr': 'lithium bromide',
@@ -236,57 +240,91 @@ def create_name_mappings():
         'LiClO4': 'lithium perchlorate',
         'LiNO3': 'lithium nitrate',
         'LiCH3COO': 'lithium acetate',
+        'Li2SO4': 'Lithium sulfate',
+        
+        # Sodium compounds
+        'NaF': 'sodium fluoride',
+        'NaCl': 'sodium chloride',
+        'NaBr': 'sodium bromide',
+        'NaI': 'sodium iodide',
+        'NaOH': 'sodium hydroxide',
+        'NaClO3': 'sodium chlorate',
+        'NaClO4': 'sodium perchlorate',
+        'NaBrO3': 'sodium bromate',
+        'NaNO3': 'sodium nitrate',
+        'NaH2PO4': 'sodium dihydrogen phosphate',
+        'NaH2AsO4': 'NaH2AsO4',
+        'NaCNS': 'NaCNS',
+        
+        # Potassium compounds
+        'KF': 'potassium fluoride',
+        'KCl': 'potassium chloride',
+        'KBr': 'potassium bromide',
+        'KI': 'potassium iodide',
+        'KOH': 'potassium hydroxide',
+        'KNO3': 'potassium nitrate',
+        
+        # Other
         'Silver Nitrate (AgNO3)': 'AgNO3',
+        'Ammonium Decahydroborate': 'Ammonium decahydrodecaborate',
     }
     return mappings
+
+
+def normalize_name(name):
+    """Normalize electrolyte name for matching."""
+    name = str(name).strip().lower()
+    name = name.replace("'", "").replace('"', '')
+    # Remove trailing commas
+    name = name.rstrip(',')
+    return name
+
+
+def extract_formula(name):
+    """Extract chemical formula from name (if present in parentheses)."""
+    match = re.search(r'\(([A-Za-z0-9]+)\)', name)
+    return match.group(1) if match else None
 
 
 def merge_datasets(properties_df, pitzer_df):
     """
     Merge properties (X) with Pitzer coefficients (y).
-    Uses name matching with mappings and formula matching.
+    Uses multiple matching strategies:
+    1. Direct name matching (case-insensitive)
+    2. Formula-based matching (from parentheses)
+    3. Name mappings (common variations)
+    4. Case-insensitive partial matching
     """
-    # Rename Pitzer coefficient columns to avoid conflicts
-    pitzer_renamed = pitzer_df.rename(columns={'Name': 'Pitzer_Name'})
-    
     all_matches = []
     matched_property_indices = set()
+    matched_pitzer_indices = set()
     
-    # Strategy 1: Direct name matching
-    for idx, prop_row in properties_df.iterrows():
-        prop_name = prop_row['Name']
-        # Check if this name exists in pitzer data
-        pitzer_match = pitzer_df[pitzer_df['Name'] == prop_name]
-        if not pitzer_match.empty and idx not in matched_property_indices:
-            result = prop_row.copy()
+    # Create normalized versions for matching
+    props_normalized = properties_df.copy()
+    props_normalized['Name_norm'] = props_normalized['Name'].apply(normalize_name)
+    
+    pitzer_normalized = pitzer_df.copy()
+    pitzer_normalized['Name_norm'] = pitzer_normalized['Name'].apply(normalize_name)
+    
+    # Strategy 1: Direct case-insensitive name matching
+    for idx, prop_row in props_normalized.iterrows():
+        prop_name_norm = prop_row['Name_norm']
+        pitzer_match = pitzer_normalized[
+            (pitzer_normalized['Name_norm'] == prop_name_norm) & 
+            (~pitzer_normalized.index.isin(matched_pitzer_indices))
+        ]
+        if not pitzer_match.empty:
+            result = properties_df.loc[idx].copy()
+            pitzer_idx = pitzer_match.index[0]
             for col in ['Beta(0)', 'Beta(1)', 'Beta(2)', 'C(MX)']:
-                result[col] = pitzer_match.iloc[0][col]
+                result[col] = pitzer_df.loc[pitzer_idx, col]
             all_matches.append(result)
             matched_property_indices.add(idx)
+            matched_pitzer_indices.add(pitzer_idx)
     
-    print(f"\nDirect name matches: {len(all_matches)}")
+    print(f"\nDirect name matches (case-insensitive): {len(all_matches)}")
     
-    # Strategy 2: Name mapping
-    name_mappings = create_name_mappings()
-    for idx, prop_row in properties_df.iterrows():
-        if idx in matched_property_indices:
-            continue
-        prop_name = prop_row['Name']
-        # Check each pitzer name
-        for pitzer_name in pitzer_df['Name']:
-            mapped_name = name_mappings.get(pitzer_name, pitzer_name)
-            if prop_name == mapped_name:
-                pitzer_match = pitzer_df[pitzer_df['Name'] == pitzer_name]
-                result = prop_row.copy()
-                for col in ['Beta(0)', 'Beta(1)', 'Beta(2)', 'C(MX)']:
-                    result[col] = pitzer_match.iloc[0][col]
-                all_matches.append(result)
-                matched_property_indices.add(idx)
-                break
-    
-    print(f"After name mapping: {len(all_matches)} matches")
-    
-    # Strategy 3: Formula matching
+    # Strategy 2: Formula matching from parentheses
     formula_col = 'Molecular_Formula' if 'Molecular_Formula' in properties_df.columns else None
     if formula_col:
         for idx, prop_row in properties_df.iterrows():
@@ -294,22 +332,71 @@ def merge_datasets(properties_df, pitzer_df):
                 continue
             prop_formula = str(prop_row[formula_col]).strip()
             if prop_formula and prop_formula != 'nan':
-                for _, pitzer_row in pitzer_df.iterrows():
+                for pitzer_idx, pitzer_row in pitzer_df.iterrows():
+                    if pitzer_idx in matched_pitzer_indices:
+                        continue
                     pitzer_name = pitzer_row['Name']
-                    # Extract formula from parentheses
-                    import re
-                    match = re.search(r'\(([^)]+)\)', pitzer_name)
-                    pitzer_formula = match.group(1) if match else pitzer_name
+                    pitzer_formula = extract_formula(pitzer_name)
                     
-                    if prop_formula == pitzer_formula:
+                    # Check if formula matches (either from parentheses or the name itself)
+                    if pitzer_formula == prop_formula or normalize_name(pitzer_name) == normalize_name(prop_formula):
                         result = prop_row.copy()
                         for col in ['Beta(0)', 'Beta(1)', 'Beta(2)', 'C(MX)']:
                             result[col] = pitzer_row[col]
                         all_matches.append(result)
                         matched_property_indices.add(idx)
+                        matched_pitzer_indices.add(pitzer_idx)
                         break
     
     print(f"After formula matching: {len(all_matches)} matches")
+    
+    # Strategy 3: Name mapping (pitzer name -> property name)
+    name_mappings = create_name_mappings()
+    for pitzer_idx, pitzer_row in pitzer_df.iterrows():
+        if pitzer_idx in matched_pitzer_indices:
+            continue
+        pitzer_name = pitzer_row['Name']
+        mapped_name = name_mappings.get(pitzer_name, None)
+        
+        if mapped_name:
+            # Look for this mapped name in properties
+            for idx, prop_row in properties_df.iterrows():
+                if idx in matched_property_indices:
+                    continue
+                if normalize_name(prop_row['Name']) == normalize_name(mapped_name):
+                    result = prop_row.copy()
+                    for col in ['Beta(0)', 'Beta(1)', 'Beta(2)', 'C(MX)']:
+                        result[col] = pitzer_row[col]
+                    all_matches.append(result)
+                    matched_property_indices.add(idx)
+                    matched_pitzer_indices.add(pitzer_idx)
+                    break
+    
+    print(f"After name mapping: {len(all_matches)} matches")
+    
+    # Strategy 4: Check if pitzer name is a simple formula that matches property formula
+    if formula_col:
+        for pitzer_idx, pitzer_row in pitzer_df.iterrows():
+            if pitzer_idx in matched_pitzer_indices:
+                continue
+            pitzer_name = pitzer_row['Name']
+            
+            # If pitzer name looks like a formula (short, contains uppercase letters and numbers)
+            if len(pitzer_name) <= 10 and any(c.isupper() for c in pitzer_name):
+                for idx, prop_row in properties_df.iterrows():
+                    if idx in matched_property_indices:
+                        continue
+                    prop_formula = str(prop_row[formula_col]).strip()
+                    if normalize_name(prop_formula) == normalize_name(pitzer_name):
+                        result = prop_row.copy()
+                        for col in ['Beta(0)', 'Beta(1)', 'Beta(2)', 'C(MX)']:
+                            result[col] = pitzer_row[col]
+                        all_matches.append(result)
+                        matched_property_indices.add(idx)
+                        matched_pitzer_indices.add(pitzer_idx)
+                        break
+    
+    print(f"After formula-as-name matching: {len(all_matches)} matches")
     
     if not all_matches:
         # Return empty dataframe with correct structure

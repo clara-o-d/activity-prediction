@@ -34,7 +34,7 @@ def load_data(filepath='ml_ready_dataset.csv'):
     print(f"✓ Loaded {len(df)} samples with {len(df.columns)} columns")
     
     # Define feature and target columns
-    target_cols = ['beta_0', 'beta_1', 'beta_2', 'c_mx']
+    target_cols = ['beta_0', 'beta_1', 'c_mx']  # Removed beta_2 (all zeros)
     feature_cols = [col for col in df.columns if col not in ['electrolyte_name'] + target_cols]
     
     X = df[feature_cols]
@@ -232,10 +232,34 @@ def plot_predictions(model, X_test, y_test, target_cols, model_name='Best Model'
     
     y_pred = model.predict(X_test)
     
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    # Dynamically set layout based on number of targets
+    n_targets = len(target_cols)
+    if n_targets == 1:
+        n_rows, n_cols = 1, 1
+    elif n_targets == 2:
+        n_rows, n_cols = 1, 2
+    elif n_targets == 3:
+        n_rows, n_cols = 1, 3
+    elif n_targets == 4:
+        n_rows, n_cols = 2, 2
+    else:
+        # For more than 4, use a grid that fits
+        n_cols = 3
+        n_rows = (n_targets + n_cols - 1) // n_cols
+    
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5*n_cols, 5*n_rows))
     fig.suptitle(f'{model_name}: Predicted vs Actual Values', fontsize=16, fontweight='bold')
     
-    for i, (ax, target) in enumerate(zip(axes.flat, target_cols)):
+    # Handle both single subplot and array of subplots
+    if n_targets == 1:
+        axes = [axes]
+    elif n_rows == 1:
+        axes = axes if isinstance(axes, list) else axes.flatten()
+    else:
+        axes = axes.flatten()
+    
+    for i, target in enumerate(target_cols):
+        ax = axes[i]
         y_true = y_test.iloc[:, i]
         y_p = y_pred[:, i]
         
@@ -256,6 +280,10 @@ def plot_predictions(model, X_test, y_test, target_cols, model_name='Best Model'
         ax.set_title(f'{target}\nR² = {r2:.4f}, RMSE = {rmse:.6f}', fontsize=12)
         ax.legend()
         ax.grid(True, alpha=0.3)
+    
+    # Hide any unused subplots
+    for i in range(n_targets, len(axes)):
+        axes[i].set_visible(False)
     
     plt.tight_layout()
     plt.savefig(output_file, dpi=300, bbox_inches='tight')

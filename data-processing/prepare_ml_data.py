@@ -259,11 +259,16 @@ def prepare_ml_data(input_file='clean_activity_dataset.csv',
     missing_after = df_final.isna().sum().sum()
     print(f"Missing values: {missing_before} -> {missing_after}")
     
-    # Step 7: Separate features and targets
-    print("\n[Step 7] Separating features (X) and targets (y)...")
+    # Step 7: Remove beta_2 (all zeros) and separate features and targets
+    print("\n[Step 7] Removing beta_2 and separating features (X) and targets (y)...")
+    
+    # Drop beta_2 column (all zeros, not useful for ML)
+    if 'beta_2' in df_final.columns:
+        df_final = df_final.drop(columns=['beta_2'])
+        print("Removed beta_2 column (all zeros)")
     
     # Identify target columns (Pitzer coefficients)
-    target_cols = [col for col in df_final.columns if any(x in col for x in ['beta_0', 'beta_1', 'beta_2', 'c_mx'])]
+    target_cols = [col for col in df_final.columns if any(x in col for x in ['beta_0', 'beta_1', 'c_mx'])]
     feature_cols = [col for col in df_final.columns if col not in target_cols + ['electrolyte_name']]
     
     print(f"Features (X): {len(feature_cols)} columns")
