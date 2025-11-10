@@ -121,24 +121,33 @@ predictions = model.predict(X)
 ### Quick Start
 
 ```bash
-# Train baseline model
+# Train fitted baseline model (fits equations to your data)
 python model/baseline/baseline.py
+
+# Evaluate literature empirical model (uses exact literature coefficients)
+python model/baseline/baseline_empirical.py
 
 # Compare with ML model
 python model/compare_models.py
 ```
 
+## Two Baseline Versions
+
+1. **`baseline.py`** - Fitted baseline: Fits the empirical equation form to YOUR dataset
+2. **`baseline_empirical.py`** - Literature baseline: Uses exact coefficients from literature (no fitting)
+
 ## Files
 
 All baseline files are organized in `model/baseline/`:
 
-- `baseline.py` - Main implementation
-- `baseline_model.pkl` - Saved trained model
-- `baseline_predictions.png` - Training set predictions
-- `empirical_correlations.png` - Plots showing the empirical correlations (Figures 3 & 5 style)
-- `baseline_comparison.png` - Comparison plot with ML model
-- `ml_comparison.png` - ML model comparison plot
-- `BASELINE_README.md` - This documentation
+- `baseline.py` - Fitted baseline implementation
+- `baseline_empirical.py` - Literature empirical baseline (no fitting)
+- `baseline_model.pkl` - Saved fitted model
+- `empirical_model.pkl` - Saved literature empirical model
+- `baseline_predictions.png` - Fitted model predictions
+- `empirical_predictions.png` - Literature model predictions
+- `empirical_correlations.png` - Empirical correlations (Figures 3 & 5 style)
+- `empirical_literature_fit.png` - Literature equations applied to data
 
 ## Empirical Correlation Plots
 
