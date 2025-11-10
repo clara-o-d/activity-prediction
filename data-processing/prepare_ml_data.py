@@ -262,13 +262,20 @@ def prepare_ml_data(input_file='clean_activity_dataset.csv',
     # Step 7: Remove beta_2 (all zeros) and separate features and targets
     print("\n[Step 7] Removing beta_2 and separating features (X) and targets (y)...")
     
-    # Drop beta_2 column (all zeros, not useful for ML)
+    # Drop beta_2 and c_mx columns
+    cols_to_drop = []
     if 'beta_2' in df_final.columns:
-        df_final = df_final.drop(columns=['beta_2'])
-        print("Removed beta_2 column (all zeros)")
+        cols_to_drop.append('beta_2')
+    if 'c_mx' in df_final.columns:
+        cols_to_drop.append('c_mx')
+    
+    if cols_to_drop:
+        df_final = df_final.drop(columns=cols_to_drop)
+        print(f"Removed columns: {', '.join(cols_to_drop)} (beta_2 is all zeros, c_mx has poor prediction)")
     
     # Identify target columns (Pitzer coefficients)
-    target_cols = [col for col in df_final.columns if any(x in col for x in ['beta_0', 'beta_1', 'c_mx'])]
+    # Only using beta_0 and beta_1
+    target_cols = [col for col in df_final.columns if any(x in col for x in ['beta_0', 'beta_1'])]
     feature_cols = [col for col in df_final.columns if col not in target_cols + ['electrolyte_name']]
     
     print(f"Features (X): {len(feature_cols)} columns")

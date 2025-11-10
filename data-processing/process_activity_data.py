@@ -113,9 +113,10 @@ def filter_complete_electrolytes(df):
 def read_pitzer_coefficients(filepath):
     """
     Read and extract Pitzer coefficients from the activity file.
-    Handles two formats:
+    Handles three formats:
     1. Name line followed by "m (mol/kg)" header with coefficients
-    2. Name line followed directly by data rows with coefficients
+    2. Name in column 1, coefficients on same line
+    3. "m" in column 1, name in column 3, coefficients on same line
     
     Returns:
         DataFrame with electrolyte names and their Pitzer coefficients
@@ -125,6 +126,52 @@ def read_pitzer_coefficients(filepath):
         lines = f.readlines()
     
     pitzer_data = []
+    skip_headers = ['m (mol/kg)', 'm', 'Concentration (m)', 'Concentration']
+    skip_keywords = ['osmotic', 'phi', 'ф', 'φ', 'gamma', 'unnamed']
+    
+    # Helper function to extract Pitzer coefficients from parts
+    def extract_pitzer(parts_list):
+        has_pitzer = False
+        beta0 = np.nan
+        beta1 = np.nan
+        beta2 = np.nan
+        cmx = np.nan
+        
+        # Ensure we have at least 8 columns
+        while len(parts_list) < 8:
+            parts_list.append('')
+        
+        if parts_list[4]:
+            try:
+                beta0 = float(parts_list[4])
+                has_pitzer = True
+            except ValueError:
+                pass
+        if parts_list[5]:
+            try:
+                beta1 = float(parts_list[5])
+                has_pitzer = True
+            except ValueError:
+                pass
+        if parts_list[6]:
+            try:
+                beta2 = float(parts_list[6])
+                has_pitzer = True
+            except ValueError:
+                pass
+        if parts_list[7]:
+            try:
+                cmx = float(parts_list[7])
+                has_pitzer = True
+            except ValueError:
+                pass
+        
+        return has_pitzer, beta0, beta1, beta2, cmx
+    
+    def should_skip_name(name):
+        """Check if name should be skipped based on keywords"""
+        name_lower = name.lower()
+        return any(keyword in name_lower for keyword in skip_keywords)
     
     i = 0
     while i < len(lines):
@@ -134,73 +181,54 @@ def read_pitzer_coefficients(filepath):
             continue
             
         parts = [p.strip() for p in line.split(',')]
+        name = None
+        coeffs = None
         
-        # Look for electrolyte name line: first column starts with a letter
-        if len(parts) >= 1 and parts[0] and parts[0][0].isalpha() and parts[0] not in ['m (mol/kg)', 'm']:
-            electrolyte_name = parts[0].strip()
+        # Pattern 1 & 2: Name in column 1 (not "m")
+        if (len(parts) >= 1 and parts[0] and 
+            parts[0][0].isalpha() and 
+            parts[0] not in skip_headers):
             
-            # Pad current line parts to 8 columns
-            while len(parts) < 8:
-                parts.append('')
-            
-            # Helper function to extract Pitzer coefficients
-            def extract_pitzer(parts_list):
-                has_pitzer = False
-                beta0 = np.nan
-                beta1 = np.nan
-                beta2 = np.nan
-                cmx = np.nan
+            potential_name = parts[0]
+            if not should_skip_name(potential_name):
+                # First check if coefficients are on same line (Pattern 2)
+                has_pitzer, beta0, beta1, beta2, cmx = extract_pitzer(parts)
                 
-                if parts_list[4]:
-                    try:
-                        beta0 = float(parts_list[4])
-                        has_pitzer = True
-                    except ValueError:
-                        pass
-                if parts_list[5]:
-                    try:
-                        beta1 = float(parts_list[5])
-                        has_pitzer = True
-                    except ValueError:
-                        pass
-                if parts_list[6]:
-                    try:
-                        beta2 = float(parts_list[6])
-                        has_pitzer = True
-                    except ValueError:
-                        pass
-                if parts_list[7]:
-                    try:
-                        cmx = float(parts_list[7])
-                        has_pitzer = True
-                    except ValueError:
-                        pass
-                
-                return has_pitzer, beta0, beta1, beta2, cmx
-            
-            # Pattern 1: Check current line for Pitzer coefficients
-            has_pitzer, beta0, beta1, beta2, cmx = extract_pitzer(parts)
-            
-            # Pattern 2: Check next line if current line doesn't have coefficients
-            if not has_pitzer and i + 1 < len(lines):
-                next_line = lines[i + 1].strip()
-                next_parts = [p.strip() for p in next_line.split(',')]
-                
-                # Ensure we have at least 8 columns
-                while len(next_parts) < 8:
-                    next_parts.append('')
-                
-                has_pitzer, beta0, beta1, beta2, cmx = extract_pitzer(next_parts)
-            
-            # Add if at least one coefficient is present
-            if has_pitzer:
-                pitzer_data.append({
-                    'Name': electrolyte_name,
-                    'Beta(0)': beta0,
-                    'Beta(1)': beta1,
-                    'Beta(2)': beta2,
-                    'C(MX)': cmx
-                })
+                if has_pitzer:
+                    name = potential_name
+                    coeffs = (beta0, beta1, beta2, cmx)
+                else:
+                    # Check next line for coefficients (Pattern 1)
+                    if i + 1 < len(lines):
+                        next_line = lines[i + 1].strip()
+                        next_parts = [p.strip() for p in next_line.split(',')]
+                        has_pitzer, beta0, beta1, beta2, cmx = extract_pitzer(next_parts)
+                        
+                        if has_pitzer:
+                            name = potential_name
+                            coeffs = (beta0, beta1, beta2, cmx)
+        
+        # Pattern 3: Column 1 is "m", name in column 3, coefficients on same line
+        if not name and parts[0] in ['m', 'm (mol/kg)']:
+            if len(parts) >= 3 and parts[2]:
+                col3 = parts[2]
+                if col3 and col3[0].isalpha() and not should_skip_name(col3):
+                    # Check for Pitzer coefficients on same line
+                    has_pitzer, beta0, beta1, beta2, cmx = extract_pitzer(parts)
+                    
+                    if has_pitzer:
+                        name = col3
+                        coeffs = (beta0, beta1, beta2, cmx)
+        
+        # Add if we found a valid name and coefficients
+        if name and coeffs:
+            pitzer_data.append({
+                'Name': name,
+                'Beta(0)': coeffs[0],
+                'Beta(1)': coeffs[1],
+                'Beta(2)': coeffs[2],
+                'C(MX)': coeffs[3]
+            })
         
         i += 1
     
@@ -209,11 +237,14 @@ def read_pitzer_coefficients(filepath):
     # Clean up names
     pitzer_df['Name'] = pitzer_df['Name'].str.strip().str.replace("'", "").str.strip()
     
-    # Remove duplicates (keep first occurrence)
-    pitzer_df = pitzer_df.drop_duplicates(subset='Name', keep='first')
+    # Remove exact duplicates only (same name AND same coefficients)
+    # Keep entries where same electrolyte has different coefficients (different sources)
+    print(f"\nBefore deduplication: {len(pitzer_df)} entries")
+    pitzer_df = pitzer_df.drop_duplicates(subset=['Name', 'Beta(0)', 'Beta(1)', 'Beta(2)', 'C(MX)'], keep='first')
     
-    print(f"\nExtracted Pitzer coefficients for {len(pitzer_df)} electrolytes")
-    print(f"Electrolytes with at least one Pitzer coefficient: {pitzer_df[['Beta(0)', 'Beta(1)', 'Beta(2)', 'C(MX)']].notna().any(axis=1).sum()}")
+    print(f"Extracted Pitzer coefficients for {len(pitzer_df)} electrolyte entries")
+    print(f"Unique electrolyte names: {pitzer_df['Name'].nunique()}")
+    print(f"Electrolytes with all four Pitzer coefficients: {pitzer_df[['Beta(0)', 'Beta(1)', 'Beta(2)', 'C(MX)']].notna().all(axis=1).sum()}")
     
     return pitzer_df
 

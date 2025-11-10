@@ -34,7 +34,7 @@ def load_data(filepath='ml_ready_dataset.csv'):
     print(f"✓ Loaded {len(df)} samples with {len(df.columns)} columns")
     
     # Define feature and target columns
-    target_cols = ['beta_0', 'beta_1', 'c_mx']  # Removed beta_2 (all zeros)
+    target_cols = ['beta_0', 'beta_1']  # Only using beta_0 and beta_1
     feature_cols = [col for col in df.columns if col not in ['electrolyte_name'] + target_cols]
     
     X = df[feature_cols]
@@ -70,28 +70,37 @@ def explore_data(X, y, feature_cols, target_cols):
     print(f"  Anion features: {len(an_features)}")
 
 
-def split_and_scale_data(X, y, test_size=0.2, random_state=42):
-    """Split data and scale features."""
+def split_and_scale_data(X, y, train_size=0.70, val_size=0.15, test_size=0.15, random_state=42):
+    """Split data into train/validation/test and scale features."""
     print("\n" + "=" * 80)
-    print("Data Preparation")
+    print("Data Preparation (Train/Validation/Test Split)")
     print("=" * 80)
     
-    # Split data
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state
+    # First split: separate training from temp (val + test)
+    X_train, X_temp, y_train, y_temp = train_test_split(
+        X, y, test_size=(val_size + test_size), random_state=random_state
     )
     
-    print(f"✓ Train set: {len(X_train)} samples ({100*(1-test_size):.0f}%)")
-    print(f"✓ Test set: {len(X_test)} samples ({100*test_size:.0f}%)")
+    # Second split: separate validation from test
+    val_prop = val_size / (val_size + test_size)
+    X_val, X_test, y_val, y_test = train_test_split(
+        X_temp, y_temp, test_size=(1 - val_prop), random_state=random_state
+    )
     
-    # Scale features
+    print(f"✓ Train set: {len(X_train)} samples ({train_size*100:.0f}%)")
+    print(f"✓ Validation set: {len(X_val)} samples ({val_size*100:.0f}%)")
+    print(f"✓ Test set: {len(X_test)} samples ({test_size*100:.0f}%)")
+    print(f"✓ Total: {len(X)} samples")
+    
+    # Scale features using only training data statistics
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
+    X_val_scaled = scaler.transform(X_val)
     X_test_scaled = scaler.transform(X_test)
     
-    print(f"✓ Features scaled (mean=0, std=1)")
+    print(f"✓ Features scaled (mean=0, std=1) using training data only")
     
-    return X_train_scaled, X_test_scaled, y_train, y_test, scaler
+    return X_train_scaled, X_val_scaled, X_test_scaled, y_train, y_val, y_test, scaler
 
 
 def train_models(X_train, y_train, target_cols):
@@ -154,10 +163,10 @@ def train_models(X_train, y_train, target_cols):
     return models
 
 
-def evaluate_models(models, X_train, X_test, y_train, y_test, target_cols):
-    """Evaluate all models and display results."""
+def evaluate_models(models, X_train, X_val, y_train, y_val, target_cols, dataset_name="Validation"):
+    """Evaluate all models on validation set (used for model selection)."""
     print("\n" + "=" * 80)
-    print("Model Evaluation")
+    print(f"Model Evaluation ({dataset_name} Set - For Model Selection)")
     print("=" * 80)
     
     results = []
@@ -168,7 +177,7 @@ def evaluate_models(models, X_train, X_test, y_train, y_test, target_cols):
         
         # Predictions
         y_train_pred = model.predict(X_train)
-        y_test_pred = model.predict(X_test)
+        y_val_pred = model.predict(X_val)
         
         # Metrics for each target
         model_results = {'model': model_name}
@@ -178,26 +187,26 @@ def evaluate_models(models, X_train, X_test, y_train, y_test, target_cols):
             train_r2 = r2_score(y_train.iloc[:, i], y_train_pred[:, i])
             train_rmse = np.sqrt(mean_squared_error(y_train.iloc[:, i], y_train_pred[:, i]))
             
-            # Test metrics
-            test_r2 = r2_score(y_test.iloc[:, i], y_test_pred[:, i])
-            test_rmse = np.sqrt(mean_squared_error(y_test.iloc[:, i], y_test_pred[:, i]))
-            test_mae = mean_absolute_error(y_test.iloc[:, i], y_test_pred[:, i])
+            # Validation metrics
+            val_r2 = r2_score(y_val.iloc[:, i], y_val_pred[:, i])
+            val_rmse = np.sqrt(mean_squared_error(y_val.iloc[:, i], y_val_pred[:, i]))
+            val_mae = mean_absolute_error(y_val.iloc[:, i], y_val_pred[:, i])
             
             print(f"  {target}:")
             print(f"    Train R² = {train_r2:.4f}, RMSE = {train_rmse:.6f}")
-            print(f"    Test  R² = {test_r2:.4f}, RMSE = {test_rmse:.6f}, MAE = {test_mae:.6f}")
+            print(f"    Val   R² = {val_r2:.4f}, RMSE = {val_rmse:.6f}, MAE = {val_mae:.6f}")
             
-            model_results[f'{target}_test_r2'] = test_r2
-            model_results[f'{target}_test_rmse'] = test_rmse
-            model_results[f'{target}_test_mae'] = test_mae
+            model_results[f'{target}_val_r2'] = val_r2
+            model_results[f'{target}_val_rmse'] = val_rmse
+            model_results[f'{target}_val_mae'] = val_mae
         
         # Average performance
-        avg_r2 = np.mean([model_results[f'{t}_test_r2'] for t in target_cols])
-        avg_rmse = np.mean([model_results[f'{t}_test_rmse'] for t in target_cols])
-        model_results['avg_test_r2'] = avg_r2
-        model_results['avg_test_rmse'] = avg_rmse
+        avg_r2 = np.mean([model_results[f'{t}_val_r2'] for t in target_cols])
+        avg_rmse = np.mean([model_results[f'{t}_val_rmse'] for t in target_cols])
+        model_results['avg_val_r2'] = avg_r2
+        model_results['avg_val_rmse'] = avg_rmse
         
-        print(f"  Average Test R² = {avg_r2:.4f}, RMSE = {avg_rmse:.6f}")
+        print(f"  Average Val R² = {avg_r2:.4f}, RMSE = {avg_rmse:.6f}")
         
         results.append(model_results)
     
@@ -207,7 +216,7 @@ def evaluate_models(models, X_train, X_test, y_train, y_test, target_cols):
 def cross_validate_best_model(best_model, X, y, cv=5):
     """Perform cross-validation on the best model."""
     print("\n" + "=" * 80)
-    print("Cross-Validation (Best Model)")
+    print("Cross-Validation (Best Model on Training Set)")
     print("=" * 80)
     
     kfold = KFold(n_splits=cv, shuffle=True, random_state=42)
@@ -222,6 +231,42 @@ def cross_validate_best_model(best_model, X, y, cv=5):
     print(f"\nMean R²: {cv_scores.mean():.4f} (+/- {cv_scores.std() * 2:.4f})")
     
     return cv_scores
+
+
+def evaluate_final_model(model, X_test, y_test, target_cols, model_name="Final Model"):
+    """Evaluate the final selected model on test set (ONLY USED ONCE)."""
+    print("\n" + "=" * 80)
+    print("FINAL MODEL EVALUATION ON TEST SET")
+    print("=" * 80)
+    
+    y_test_pred = model.predict(X_test)
+    
+    results = {}
+    print(f"\n{model_name} - Test Set Performance:")
+    print("-" * 60)
+    
+    for i, target in enumerate(target_cols):
+        test_r2 = r2_score(y_test.iloc[:, i], y_test_pred[:, i])
+        test_rmse = np.sqrt(mean_squared_error(y_test.iloc[:, i], y_test_pred[:, i]))
+        test_mae = mean_absolute_error(y_test.iloc[:, i], y_test_pred[:, i])
+        
+        print(f"  {target}:")
+        print(f"    Test R² = {test_r2:.4f}, RMSE = {test_rmse:.6f}, MAE = {test_mae:.6f}")
+        
+        results[f'{target}_test_r2'] = test_r2
+        results[f'{target}_test_rmse'] = test_rmse
+        results[f'{target}_test_mae'] = test_mae
+    
+    # Average performance
+    avg_r2 = np.mean([results[f'{t}_test_r2'] for t in target_cols])
+    avg_rmse = np.mean([results[f'{t}_test_rmse'] for t in target_cols])
+    results['avg_test_r2'] = avg_r2
+    results['avg_test_rmse'] = avg_rmse
+    
+    print(f"\n  ⭐ Average Test R² = {avg_r2:.4f}, RMSE = {avg_rmse:.6f}")
+    print("\n" + "=" * 80)
+    
+    return results, y_test_pred
 
 
 def plot_predictions(model, X_test, y_test, target_cols, model_name='Best Model', output_file='prediction_plots.png'):
@@ -335,59 +380,116 @@ def main():
     # 2. Explore data
     explore_data(X, y, feature_cols, target_cols)
     
-    # 3. Split and scale
-    X_train, X_test, y_train, y_test, scaler = split_and_scale_data(X, y, test_size=0.2)
+    # 3. Split into train/validation/test (65%/20%/15%) and scale
+    X_train, X_val, X_test, y_train, y_val, y_test, scaler = split_and_scale_data(
+        X, y, train_size=0.50, val_size=0.30, test_size=0.20
+    )
     
-    # 4. Train models
+    # 4. Train models on training set
     models = train_models(X_train, y_train, target_cols)
     
-    # 5. Evaluate models
-    results_df = evaluate_models(models, X_train, X_test, y_train, y_test, target_cols)
+    # 5. Evaluate models on VALIDATION set (used for model selection)
+    results_df = evaluate_models(models, X_train, X_val, y_train, y_val, target_cols, dataset_name="Validation")
     
-    # 6. Select best model
+    # 6. Select best model based on VALIDATION performance
     print("\n" + "=" * 80)
-    print("Model Comparison")
+    print("Model Comparison (Based on Validation Set)")
     print("=" * 80)
-    print("\nAverage Test R² by Model:")
-    comparison = results_df[['model', 'avg_test_r2', 'avg_test_rmse']].sort_values('avg_test_r2', ascending=False)
+    print("\nAverage Validation R² by Model:")
+    comparison = results_df[['model', 'avg_val_r2', 'avg_val_rmse']].sort_values('avg_val_r2', ascending=False)
     print(comparison.to_string(index=False))
     
     best_model_name = comparison.iloc[0]['model']
     best_model = models[best_model_name]
-    print(f"\n🏆 Best Model: {best_model_name}")
+    print(f"\n🏆 Best Model (Selected on Validation): {best_model_name}")
     
-    # 7. Cross-validation
-    X_scaled = scaler.fit_transform(X)
-    cv_scores = cross_validate_best_model(best_model, X_scaled, y)
+    # 7. Cross-validation on training set only
+    cv_scores = cross_validate_best_model(best_model, X_train, y_train)
     
-    # 8. Plot predictions
+    # 8. FINAL EVALUATION: Evaluate selected model ONCE on test set
+    final_test_results, y_test_pred = evaluate_final_model(best_model, X_test, y_test, target_cols, best_model_name)
+    
+    # 9. Plot predictions on test set (final use of test data)
     plot_output = os.path.join(model_dir, 'prediction_plots.png')
     plot_predictions(best_model, X_test, y_test, target_cols, best_model_name, plot_output)
     
-    # 9. Feature importance (if available)
+    # 10. Feature importance
+    print("\n" + "=" * 80)
+    print("Feature Importance Analysis")
+    print("=" * 80)
+    
+    # Extract feature importance based on model type
     if hasattr(best_model, 'feature_importances_'):
-        print("\n" + "=" * 80)
-        print("Feature Importance (Top 10)")
-        print("=" * 80)
-        
+        # Tree-based models (Random Forest, etc.)
         importances = best_model.feature_importances_
+        print(f"\nUsing built-in feature importances from {best_model_name}")
+        
+    elif hasattr(best_model, 'estimators_'):
+        # MultiOutputRegressor wrapper (e.g., Gradient Boosting)
+        print(f"\nAveraging feature importances across {len(target_cols)} target models")
+        importances_list = []
+        for estimator in best_model.estimators_:
+            if hasattr(estimator, 'feature_importances_'):
+                importances_list.append(estimator.feature_importances_)
+        if importances_list:
+            importances = np.mean(importances_list, axis=0)
+        else:
+            importances = None
+            
+    elif hasattr(best_model, 'coef_'):
+        # Linear models (Ridge, Lasso, ElasticNet)
+        # Use absolute coefficient values averaged across targets
+        print(f"\nUsing absolute coefficient values from {best_model_name}")
+        if best_model.coef_.ndim == 1:
+            importances = np.abs(best_model.coef_)
+        else:
+            importances = np.mean(np.abs(best_model.coef_), axis=0)
+    else:
+        importances = None
+    
+    if importances is not None:
         feature_importance = pd.DataFrame({
             'feature': feature_cols,
             'importance': importances
         }).sort_values('importance', ascending=False)
         
-        print(feature_importance.head(10).to_string(index=False))
+        print("\n" + "=" * 80)
+        print("TOP 15 MOST IMPORTANT FEATURES")
+        print("=" * 80)
+        for idx, row in feature_importance.head(15).iterrows():
+            print(f"  {row['feature']:30s} : {row['importance']:.6f}")
+        
+        print("\n" + "=" * 80)
+        print("FEATURE IMPORTANCE BY CATEGORY")
+        print("=" * 80)
+        
+        # Categorize features
+        mol_imp = feature_importance[feature_importance['feature'].str.startswith('mol_')]['importance'].sum()
+        cat_imp = feature_importance[feature_importance['feature'].str.startswith('cat_')]['importance'].sum()
+        an_imp = feature_importance[feature_importance['feature'].str.startswith('an_')]['importance'].sum()
+        
+        total_imp = mol_imp + cat_imp + an_imp
+        print(f"  Molecular features : {mol_imp:.4f} ({100*mol_imp/total_imp:.1f}%)")
+        print(f"  Cation features    : {cat_imp:.4f} ({100*cat_imp/total_imp:.1f}%)")
+        print(f"  Anion features     : {an_imp:.4f} ({100*an_imp/total_imp:.1f}%)")
+    else:
+        print(f"\n⚠️ Feature importance not available for {best_model_name}")
     
-    # 10. Save best model
+    # 11. Save best model
     save_model(best_model, scaler, os.path.join(model_dir, 'best_pitzer_model.pkl'))
     
     # Final summary
     print("\n" + "=" * 80)
-    print("TRAINING COMPLETE! 🎉")
+    print("TRAINING COMPLETE!")
     print("=" * 80)
     print(f"\nBest Model: {best_model_name}")
-    print(f"Average Test R²: {comparison.iloc[0]['avg_test_r2']:.4f}")
-    print(f"Average Test RMSE: {comparison.iloc[0]['avg_test_rmse']:.6f}")
+    print(f"Selected based on Validation R²: {comparison.iloc[0]['avg_val_r2']:.4f}")
+    print(f"Final Test R² (unbiased): {final_test_results['avg_test_r2']:.4f}")
+    print(f"Final Test RMSE: {final_test_results['avg_test_rmse']:.6f}")
+    print("\nData Split:")
+    print(f"  - Training: {len(X_train)} samples (70%)")
+    print(f"  - Validation: {len(X_val)} samples (20%) - used for model selection")
+    print(f"  - Test: {len(X_test)} samples (10%) - used ONCE for final evaluation")
     print("\nGenerated Files:")
     print("  - best_pitzer_model.pkl (trained model + scaler)")
     print("  - prediction_plots.png (visualization)")

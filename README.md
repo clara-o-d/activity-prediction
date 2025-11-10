@@ -17,8 +17,14 @@ activity-prediction/
 │   ├── process_activity_data.py
 │   └── prepare_ml_data.py
 ├── model/                         # Model training and prediction
+│   ├── baseline/                  # Baseline model folder
+│   │   ├── baseline.py            # Baseline implementation
+│   │   ├── baseline_model.pkl     # Trained baseline model
+│   │   ├── BASELINE_README.md     # Baseline documentation
+│   │   └── empirical_correlations.png
 │   ├── train_model.py
 │   ├── predict_new.py
+│   ├── compare_models.py          # Compare baseline vs ML model
 │   ├── best_pitzer_model.pkl
 │   └── prediction_plots.png
 └── README.md
@@ -61,7 +67,27 @@ This will:
 - Handle missing values
 - Output: `data/ml_ready_dataset.csv` and separate X/y files
 
-### 3. Train Models
+### 3. Train Baseline Model (Optional)
+
+Train the empirical baseline model based on ionic charge and radius correlations:
+
+```bash
+python model/baseline/baseline.py
+```
+
+This will:
+- Train a physics-based empirical model using correlations from literature
+- Uses only ionic charge and radius features
+- Beta(0) = a * Z_M^1.62 * Z_X^-1.35 * |r_M - 1.5*r_X|^1.2 + b
+- Beta(1) follows a polynomial relationship with charge/radius features
+- Output: `model/baseline_model.pkl` and prediction plots
+
+**Performance:**
+- Overall R²: 0.83
+- Beta(0) R²: 0.31
+- Beta(1) R²: 0.81
+
+### 4. Train ML Models
 
 Train and evaluate multiple ML models:
 
@@ -76,122 +102,34 @@ This will:
 - Generate prediction plots
 - Save best model: `model/best_pitzer_model.pkl`
 
-### 4. Make Predictions
+**Performance:**
+- Overall R²: 0.90
+- Beta(0) R²: 0.76
+- Beta(1) R²: 0.88
+
+### 5. Compare Baseline vs ML Model
+
+Compare the performance of both models:
+
+```bash
+python model/compare_models.py
+```
+
+This will:
+- Load both baseline and ML models
+- Evaluate on their respective test sets
+- Generate comparison metrics and plots
+- Show improvement achieved by ML approach
+
+**Key Improvements (Baseline → ML):**
+- Beta(0): R² 0.31 → 0.76 (145% improvement)
+- Beta(1): R² 0.81 → 0.88 (9% improvement)
+- Overall RMSE: 26% reduction
+
+### 6. Make Predictions
 
 Use trained model for predictions:
 
 ```bash
 python model/predict_new.py
 ```
-
-## 📊 Current Results
-
-**Dataset**: 36 electrolytes with 27 features  
-**Best Model**: Random Forest  
-**Average Test R²**: 0.55  
-**Cross-Validation R²**: 0.55 (± 0.27)
-
-### Performance by Target
-
-- **beta_0**: Good predictions (R² ≈ 0.75)
-- **beta_1**: Moderate predictions (R² ≈ 0.25)
-- **beta_2**: Perfect (all zeros in data)
-- **c_mx**: Challenging (R² ≈ 0.18)
-
-### Top 5 Important Features
-
-1. Molecular ionic species count (22.8%)
-2. Cation charge (18.9%)
-3. Cation hydration enthalpy (14.1%)
-4. Anion charge (9.3%)
-5. Cation valence electrons (8.5%)
-
-## 🔧 Custom Usage
-
-### Load and use the trained model
-
-```python
-import pickle
-import pandas as pd
-import os
-
-# Load model
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-model_path = os.path.join(project_root, 'model', 'best_pitzer_model.pkl')
-
-with open(model_path, 'rb') as f:
-    data = pickle.load(f)
-    model = data['model']
-    scaler = data['scaler']
-
-# Load features for new electrolyte
-data_dir = os.path.join(project_root, 'data')
-X = pd.read_csv(os.path.join(data_dir, 'ml_ready_dataset_X.csv'))
-
-# Make predictions
-X_scaled = scaler.transform(X.iloc[:, 1:])  # Skip electrolyte_name
-predictions = model.predict(X_scaled)
-
-# predictions = [beta_0, beta_1, beta_2, c_mx]
-```
-
-### Predict for custom electrolyte
-
-```python
-# Prepare your electrolyte features (must match training data exactly)
-X_new = pd.DataFrame({
-    'mol_molar_mass': [58.44],
-    'mol_is_organic': [0],
-    'mol_is_acid': [0],
-    'mol_ionic_species': [2],
-    'mol_solubility': [35.9],
-    # ... all 27 features in order
-})
-
-# Scale and predict
-X_scaled = scaler.transform(X_new)
-predictions = model.predict(X_scaled)
-```
-
-## 📈 Model Details
-
-### Features (27 total)
-- **Molecular** (5): mass, organic flag, acid flag, ionic species count, solubility
-- **Cation** (15): mass, charge, valence, radii, hydration properties, periodic table, etc.
-- **Anion** (7): charge, valence, radii, hydration properties, etc.
-
-### Targets (4)
-- `beta_0`: First Pitzer parameter
-- `beta_1`: Second Pitzer parameter
-- `beta_2`: Third Pitzer parameter (all zeros in current data)
-- `c_mx`: Pitzer mixing parameter
-
-### Models Compared
-1. Random Forest (Best) - R² = 0.55
-2. Gradient Boosting - R² = 0.53
-3. Lasso - R² = 0.37
-4. Elastic Net - R² = 0.30
-5. Ridge - R² = 0.12
-
-## 📝 Notes
-
-- **Limited data**: Only 36 samples; model performance improves with more data
-- **Best for beta_0**: Most reliable predictions for first Pitzer parameter
-- **Use for screening**: Good for candidate ranking, not high-precision calculations
-- **Physical features**: Model identifies meaningful physical properties as important
-
-## 🎯 Next Steps
-
-1. Collect more electrolyte data
-2. Try separate models for beta_1 and c_mx
-3. Feature engineering (polynomial, interactions)
-4. Physics-informed machine learning
-5. Ensemble methods
-
-## 📚 Files
-
-- `data-processing/process_activity_data.py` - Convert raw → clean data
-- `data-processing/prepare_ml_data.py` - Convert clean → ML-ready data
-- `model/train_model.py` - Train and evaluate models
-- `model/predict_new.py` - Make predictions with trained model
-
