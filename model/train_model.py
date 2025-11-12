@@ -337,6 +337,74 @@ def plot_predictions(model, X_test, y_test, target_cols, model_name='Best Model'
     return fig
 
 
+def plot_training_predictions(model, X_train, y_train, target_cols, model_name='Best Model', output_file='training_prediction_plots.png'):
+    """Plot predicted vs actual values for each target on training data."""
+    print("\n" + "=" * 80)
+    print("Generating Training Data Prediction Plots")
+    print("=" * 80)
+    
+    y_pred = model.predict(X_train)
+    
+    # Dynamically set layout based on number of targets
+    n_targets = len(target_cols)
+    if n_targets == 1:
+        n_rows, n_cols = 1, 1
+    elif n_targets == 2:
+        n_rows, n_cols = 1, 2
+    elif n_targets == 3:
+        n_rows, n_cols = 1, 3
+    elif n_targets == 4:
+        n_rows, n_cols = 2, 2
+    else:
+        # For more than 4, use a grid that fits
+        n_cols = 3
+        n_rows = (n_targets + n_cols - 1) // n_cols
+    
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5*n_cols, 5*n_rows))
+    fig.suptitle(f'{model_name}: Predicted vs Actual Values (Training Data)', fontsize=16, fontweight='bold')
+    
+    # Handle both single subplot and array of subplots
+    if n_targets == 1:
+        axes = [axes]
+    elif n_rows == 1:
+        axes = axes if isinstance(axes, list) else axes.flatten()
+    else:
+        axes = axes.flatten()
+    
+    for i, target in enumerate(target_cols):
+        ax = axes[i]
+        y_true = y_train.iloc[:, i]
+        y_p = y_pred[:, i]
+        
+        # Scatter plot
+        ax.scatter(y_true, y_p, alpha=0.6, s=100, edgecolors='k', linewidth=0.5)
+        
+        # Perfect prediction line
+        min_val = min(y_true.min(), y_p.min())
+        max_val = max(y_true.max(), y_p.max())
+        ax.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2, label='Perfect Prediction')
+        
+        # Metrics
+        r2 = r2_score(y_true, y_p)
+        rmse = np.sqrt(mean_squared_error(y_true, y_p))
+        
+        ax.set_xlabel('Actual', fontsize=11)
+        ax.set_ylabel('Predicted', fontsize=11)
+        ax.set_title(f'{target}\nR² = {r2:.4f}, RMSE = {rmse:.6f}', fontsize=12)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+    
+    # Hide any unused subplots
+    for i in range(n_targets, len(axes)):
+        axes[i].set_visible(False)
+    
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"✓ Saved to '{output_file}'")
+    
+    return fig
+
+
 def save_model(model, scaler, filepath='best_model.pkl'):
     """Save the trained model and scaler."""
     import pickle
@@ -405,6 +473,10 @@ def main():
     
     # 7. Cross-validation on training set only
     cv_scores = cross_validate_best_model(best_model, X_train, y_train)
+    
+    # 7.5. Plot best model on training data
+    training_plot_output = os.path.join(model_dir, 'training_prediction_plots.png')
+    plot_training_predictions(best_model, X_train, y_train, target_cols, best_model_name, training_plot_output)
     
     # 8. FINAL EVALUATION: Evaluate selected model ONCE on test set
     final_test_results, y_test_pred = evaluate_final_model(best_model, X_test, y_test, target_cols, best_model_name)
@@ -492,7 +564,8 @@ def main():
     print(f"  - Test: {len(X_test)} samples (10%) - used ONCE for final evaluation")
     print("\nGenerated Files:")
     print("  - best_pitzer_model.pkl (trained model + scaler)")
-    print("  - prediction_plots.png (visualization)")
+    print("  - training_prediction_plots.png (training data visualization)")
+    print("  - prediction_plots.png (test data visualization)")
 
 
 if __name__ == "__main__":
