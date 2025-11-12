@@ -1,5 +1,4 @@
 electrolyte_name,beta_0,beta_1
-"Sodium Sulfate (Na2SO4),",0.01959,1.049
 "Potassium Sulfate (K2SO4),",0.07424,0.5188
 NaF,0.02109,0.2183
 NaCl,0.07831,0.2677
@@ -63,7 +62,6 @@ NH4ClO4,0.005579,-0.1015
 NH4NO3,-0.01709,0.09198
 TlNO2,-0.6455,-0.1248
 RbF,0.1171,0.2809
-Lithium sulfate,0.1408,1.184
 hydrogen chloride,0.1876,0.2501
 hydrobromic acid,0.2093,0.3401
 hydroiodic acid,0.2242,0.4685

@@ -405,6 +405,71 @@ def plot_training_predictions(model, X_train, y_train, target_cols, model_name='
     return fig
 
 
+def plot_all_models_validation(models, X_val, y_val, target_cols, output_file='validation_all_models_plots.png'):
+    """Plot predicted vs actual values for all models on validation data."""
+    print("\n" + "=" * 80)
+    print("Generating Validation Data Plots for All Models")
+    print("=" * 80)
+    
+    n_models = len(models)
+    n_targets = len(target_cols)
+    
+    # Create a grid: rows = models, columns = targets
+    fig, axes = plt.subplots(n_models, n_targets, figsize=(6*n_targets, 5*n_models))
+    fig.suptitle('All Models: Predicted vs Actual Values (Validation Data)', fontsize=16, fontweight='bold')
+    
+    # Ensure axes is always a 2D array for consistent indexing
+    if n_models == 1 and n_targets == 1:
+        axes = np.array([[axes]])
+    elif n_models == 1:
+        axes = np.array([axes]) if not isinstance(axes, np.ndarray) else axes.reshape(1, -1)
+    elif n_targets == 1:
+        axes = np.array([[ax] for ax in axes]) if not isinstance(axes, np.ndarray) else axes.reshape(-1, 1)
+    else:
+        axes = np.array(axes) if not isinstance(axes, np.ndarray) else axes
+    
+    for model_idx, (model_name, model) in enumerate(models.items()):
+        y_val_pred = model.predict(X_val)
+        
+        for target_idx, target in enumerate(target_cols):
+            ax = axes[model_idx, target_idx]
+            y_true = y_val.iloc[:, target_idx]
+            y_p = y_val_pred[:, target_idx]
+            
+            # Scatter plot
+            ax.scatter(y_true, y_p, alpha=0.6, s=80, edgecolors='k', linewidth=0.5)
+            
+            # Perfect prediction line
+            min_val = min(y_true.min(), y_p.min())
+            max_val = max(y_true.max(), y_p.max())
+            ax.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2, label='Perfect Prediction')
+            
+            # Metrics
+            r2 = r2_score(y_true, y_p)
+            rmse = np.sqrt(mean_squared_error(y_true, y_p))
+            
+            # Set labels
+            if model_idx == n_models - 1:  # Bottom row
+                ax.set_xlabel('Actual', fontsize=10)
+            if target_idx == 0:  # Left column
+                ax.set_ylabel('Predicted', fontsize=10)
+            
+            # Set title
+            if model_idx == 0:  # Top row
+                ax.set_title(f'{target}\n{model_name}\nR² = {r2:.4f}, RMSE = {rmse:.6f}', fontsize=11)
+            else:
+                ax.set_title(f'{model_name}\nR² = {r2:.4f}, RMSE = {rmse:.6f}', fontsize=11)
+            
+            ax.legend(fontsize=8)
+            ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"✓ Saved to '{output_file}'")
+    
+    return fig
+
+
 def save_model(model, scaler, filepath='best_model.pkl'):
     """Save the trained model and scaler."""
     import pickle
@@ -458,6 +523,10 @@ def main():
     
     # 5. Evaluate models on VALIDATION set (used for model selection)
     results_df = evaluate_models(models, X_train, X_val, y_train, y_val, target_cols, dataset_name="Validation")
+    
+    # 5.5. Plot all models on validation data
+    validation_plot_output = os.path.join(model_dir, 'validation_all_models_plots.png')
+    plot_all_models_validation(models, X_val, y_val, target_cols, validation_plot_output)
     
     # 6. Select best model based on VALIDATION performance
     print("\n" + "=" * 80)
@@ -564,8 +633,9 @@ def main():
     print(f"  - Test: {len(X_test)} samples (10%) - used ONCE for final evaluation")
     print("\nGenerated Files:")
     print("  - best_pitzer_model.pkl (trained model + scaler)")
-    print("  - training_prediction_plots.png (training data visualization)")
-    print("  - prediction_plots.png (test data visualization)")
+    print("  - validation_all_models_plots.png (all models on validation data)")
+    print("  - training_prediction_plots.png (best model on training data)")
+    print("  - prediction_plots.png (best model on test data)")
 
 
 if __name__ == "__main__":
