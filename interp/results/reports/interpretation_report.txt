@@ -1,0 +1,79 @@
+================================================================================
+GRADIENT BOOSTING MODEL INTERPRETATION REPORT
+================================================================================
+
+MODEL INFORMATION
+--------------------------------------------------------------------------------
+Model path: /Users/clara/activity-prediction/model/best_baseline_ion_model.pkl
+Data path: /Users/clara/activity-prediction/data/baseline_with_ion_properties.csv
+Model type: MultiOutputRegressor
+Number of estimators: 2
+Target variables: B_MX_0_original, B_MX_1_original
+
+DATA INFORMATION
+--------------------------------------------------------------------------------
+Number of samples: 108
+Number of features: 15
+Features: electrolyte_type_numeric, molecule_radius_vdw, molecule_molecular_weight, cation_1_molecular_weight, r_X_angstrom, molecule_n_atoms, anion_1_radius_hydrated, cation_1_radius_vdw, anion_1_molecular_weight, anion_1_n_atoms, r_M_angstrom, cation_type_numeric, cation_1_radius_hydrated, anion_1_radius_vdw, anion_type_numeric
+
+MODEL PERFORMANCE
+--------------------------------------------------------------------------------
+B_MX_0_original:
+  R² Score: 0.9899
+  RMSE: 0.022339
+  MAE: 0.008007
+B_MX_1_original:
+  R² Score: 0.9988
+  RMSE: 0.064020
+  MAE: 0.025883
+
+OUTPUT FILES GENERATED
+--------------------------------------------------------------------------------
+
+Feature Importance:
+  - feature_importance_all.csv
+  - feature_importance_comparison.png
+
+Partial Dependence:
+  - partial_dependence_2d_B_MX_0_original.png
+  - partial_dependence_2d_B_MX_1_original.png
+  - partial_dependence_B_MX_0_original.png
+  - partial_dependence_B_MX_1_original.png
+
+Shap:
+  - shap_dependence_B_MX_0_original.png
+  - shap_dependence_B_MX_1_original.png
+  - shap_force_high_B_MX_0_original.png
+  - shap_force_high_B_MX_1_original.png
+  - shap_force_low_B_MX_0_original.png
+  - shap_force_low_B_MX_1_original.png
+  - shap_force_medium_B_MX_0_original.png
+  - shap_force_medium_B_MX_1_original.png
+  - shap_summary_bar_B_MX_0_original.png
+  - shap_summary_bar_B_MX_1_original.png
+  - shap_summary_beeswarm_B_MX_0_original.png
+  - shap_summary_beeswarm_B_MX_1_original.png
+  - shap_values_B_MX_0_original.csv
+  - shap_values_B_MX_1_original.csv
+
+Trees:
+  - tree_0_B_MX_0_original.png
+  - tree_0_B_MX_1_original.png
+  - tree_149_B_MX_0_original.png
+  - tree_149_B_MX_1_original.png
+  - tree_75_B_MX_0_original.png
+  - tree_75_B_MX_1_original.png
+  - tree_statistics_B_MX_0_original.png
+  - tree_statistics_B_MX_1_original.png
+
+Leaf Paths:
+  - feature_usage_paths_B_MX_0_original.png
+  - feature_usage_paths_B_MX_1_original.png
+  - leaf_distributions_B_MX_0_original.png
+  - leaf_distributions_B_MX_1_original.png
+  - path_lengths_B_MX_0_original.png
+  - path_lengths_B_MX_1_original.png
+
+================================================================================
+END OF REPORT
+================================================================================
